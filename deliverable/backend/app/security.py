@@ -1,0 +1,68 @@
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlmodel import Session, select
+
+from .database import get_session, settings
+from .models import User
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+ALGORITHM = "HS256"
+
+
+def hash_password(p: str) -> str:
+    return pwd_context.hash(p)
+
+
+def verify_password(p: str, hashed: str) -> bool:
+    return pwd_context.verify(p, hashed)
+
+
+def create_access_token(sub: str, role: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    payload = {"sub": sub, "role": role, "exp": expire}
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def authenticate_user(session: Session, username: str, password: str) -> Optional[User]:
+    user = session.exec(select(User).where(User.username == username)).first()
+    if not user or not verify_password(password, user.password_hash):
+        return None
+    return user
+
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    session: Session = Depends(get_session),
+) -> User:
+    cred_exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        username: Optional[str] = payload.get("sub")
+        if not username:
+            raise cred_exc
+    except JWTError:
+        raise cred_exc
+
+    user = session.exec(select(User).where(User.username == username)).first()
+    if not user:
+        raise cred_exc
+    return user
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return user
