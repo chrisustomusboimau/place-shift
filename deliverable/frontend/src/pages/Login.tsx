@@ -25,38 +25,91 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <form onSubmit={onSubmit} className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-sm space-y-4 border border-slate-200">
+    <div 
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{ backgroundColor: "#f7f5e1" }} // Latar belakang krem terang halaman
+    >
+      <form 
+        onSubmit={onSubmit} 
+        className="bg-white rounded-2xl p-8 w-full max-w-sm space-y-5 border shadow-md"
+        style={{ borderColor: "#d9d6be" }}
+      >
         <div>
-          <h1 className="text-2xl font-semibold">Event Staff Tracker</h1>
-          <p className="text-sm text-slate-500">Sign in to continue</p>
+          <h1 className="text-2xl font-bold" style={{ color: "#03323f" }}>
+            Event Staff Tracker
+          </h1>
+          <p className="text-sm font-medium mt-0.5" style={{ color: "#617578" }}>
+            Sign in to continue
+          </p>
         </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Username</label>
+
+        {/* Input Username */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold uppercase tracking-wide" style={{ color: "#03323f" }}>
+            Username
+          </label>
           <input
-            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none transition-shadow"
+            style={{ borderColor: "#cfccbc", color: "#03323f" }}
             value={u}
             onChange={(e) => setU(e.target.value)}
             autoFocus
+            onFocus={(e) => {
+              e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
+              e.target.style.borderColor = "#03323f";
+            }}
+            onBlur={(e) => {
+              e.target.style.boxShadow = "none";
+              e.target.style.borderColor = "#cfccbc";
+            }}
           />
         </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Password</label>
+
+        {/* Input Password */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold uppercase tracking-wide" style={{ color: "#03323f" }}>
+            Password
+          </label>
           <input
             type="password"
-            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none transition-shadow"
+            style={{ borderColor: "#cfccbc", color: "#03323f" }}
             value={p}
             onChange={(e) => setP(e.target.value)}
+            onFocus={(e) => {
+              e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
+              e.target.style.borderColor = "#03323f";
+            }}
+            onBlur={(e) => {
+              e.target.style.boxShadow = "none";
+              e.target.style.borderColor = "#cfccbc";
+            }}
           />
         </div>
+
         {err && (
-          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
             {err}
           </div>
         )}
+
+        {/* Tombol Sign In */}
         <button
           disabled={loading}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium rounded-lg py-2"
+          className="w-full font-bold rounded-lg py-2 transition-all disabled:opacity-60"
+          style={{ backgroundColor: "#03323f", color: "#f7f5e1" }}
+          onMouseEnter={(e) => {
+            if (!loading) {
+              e.currentTarget.style.backgroundColor = "#fdaf17";
+              e.currentTarget.style.color = "#03323f";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!loading) {
+              e.currentTarget.style.backgroundColor = "#03323f";
+              e.currentTarget.style.color = "#f7f5e1";
+            }
+          }}
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>

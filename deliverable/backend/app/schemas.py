@@ -33,8 +33,13 @@ class StaffBase(BaseModel):
     user_id: Optional[int] = None
 
 
-class StaffCreate(StaffBase):
-    pass
+class StaffCreate(BaseModel):
+    name: str
+    division: Optional[str] = None
+    contact: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = "staff"
 
 
 class StaffUpdate(BaseModel):
@@ -42,10 +47,14 @@ class StaffUpdate(BaseModel):
     division: Optional[str] = None
     contact: Optional[str] = None
     user_id: Optional[int] = None
+    role: Optional[str] = "staff"
 
 
 class StaffOut(StaffBase):
     id: int
+    username: Optional[str] = None
+    role: Optional[str] = "staff"
+
     model_config = {"from_attributes": True}
 
 
@@ -107,10 +116,15 @@ class AssignmentOut(AssignmentBase):
     model_config = {"from_attributes": True}
 
 
+# FIX UTAMA: Tambahkan konfigurasi ORM attributes agar mapping objek Staff DB sukses dilempar lewat list comprehension assignments router
 class MatrixStaff(BaseModel):
     id: int
     name: str
     division: str
+    username: Optional[str] = None
+    role: Optional[str] = "staff"
+
+    model_config = {"from_attributes": True}
 
 
 class MatrixCell(BaseModel):

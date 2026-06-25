@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Any
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -10,7 +10,7 @@ from passlib.context import CryptContext
 from sqlmodel import Session, select
 
 from .database import get_session, settings
-from .models import User
+from .models import User, Staff  # FIX: Impor Staff untuk pengecekan session token
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -39,10 +39,11 @@ def authenticate_user(session: Session, username: str, password: str) -> Optiona
     return user
 
 
+# FIX: Ubah type-hint kembalian menjadi Any atau User | Staff agar TypeScript/Python tidak protes
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: Session = Depends(get_session),
-) -> User:
+) -> Any:
     cred_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -56,13 +57,22 @@ def get_current_user(
     except JWTError:
         raise cred_exc
 
+    # 1. Jalur Pertama: Cek apakah username terdaftar di tabel User (Admin)
     user = session.exec(select(User).where(User.username == username)).first()
-    if not user:
-        raise cred_exc
-    return user
+    if user:
+        return user
+
+    # 2. Jalur Kedua: Jika tidak ada di User, cek di tabel Staff (Josh, Rara, dll.)
+    staff = session.exec(select(Staff).where(Staff.username == username)).first()
+    if staff:
+        return staff
+
+    # 3. Jika di kedua tabel tidak ditemukan pemilik tokennya
+    raise cred_exc
 
 
-def require_admin(user: User = Depends(get_current_user)) -> User:
+# FIX: Menggunakan type-hint Any karena objek user bisa berupa instansiasi User maupun Staff
+def require_admin(user: Any = Depends(get_current_user)) -> Any:
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin privileges required")
     return user

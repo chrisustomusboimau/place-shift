@@ -52,9 +52,19 @@ def matrix(session: Session = Depends(get_session), _=Depends(get_current_user))
             job_description=a.job_description,
         )
 
+    # FIX: Teruskan field username dan role dari database (s) ke dalam objek MatrixStaff
     return MatrixResponse(
         time_slots=TIME_SLOTS,
-        staff=[MatrixStaff(id=s.id, name=s.name, division=s.division) for s in staff_rows],
+        staff=[
+            MatrixStaff(
+                id=s.id, 
+                name=s.name, 
+                division=s.division or "",
+                username=s.username,  # <-- MENYUPLAI USERNAME ASLI
+                role=s.role or "staff" # <-- MENYUPLAI ROLE ASLI
+            ) 
+            for s in staff_rows
+        ],
         cells=cells,
     )
 

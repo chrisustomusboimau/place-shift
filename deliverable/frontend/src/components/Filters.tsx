@@ -1,53 +1,84 @@
 import { TIME_SLOTS } from "../lib/timeSlots";
 
-export type Location = { id: number; room_name: string; floor_level: string };
+export type Location = { 
+  id: number; 
+  room_name: string; 
+  floor_level: number; 
+};
 
 type Props = {
   search: string;
   onSearch: (v: string) => void;
-  slot: string;
-  onSlot: (v: string) => void;
   locationId: string;
   onLocation: (v: string) => void;
   locations: Location[];
 };
 
 export default function Filters({
-  search, onSearch, slot, onSlot, locationId, onLocation, locations,
+  search, onSearch, locationId, onLocation, locations,
 }: Props) {
   return (
-    <div className="flex flex-wrap gap-3 items-end">
+    <div 
+      className="flex flex-wrap gap-3 items-end p-4 border rounded-xl shadow-sm"
+      style={{ backgroundColor: "#f7f5e1", borderColor: "#d9d6be" }} // Latar belakang krem kontras
+    >
+      {/* Search Staff */}
       <div>
-        <label className="block text-xs font-medium text-slate-500">Search staff</label>
+        <label 
+          className="block text-xs font-bold mb-1 uppercase tracking-wide"
+          style={{ color: "#03323f" }}
+        >
+          Search staff
+        </label>
         <input
-          className="border rounded-lg px-3 py-1.5 text-sm w-56"
+          className="border rounded-lg px-3 py-1.5 text-sm w-56 bg-white focus:outline-none transition-shadow"
+          style={{ 
+            borderColor: "#cfccbc", 
+            color: "#03323f",
+          }}
           placeholder="Name…"
           value={search}
           onChange={(e) => onSearch(e.target.value)}
+          onFocus={(e) => {
+            e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
+            e.target.style.borderColor = "#03323f";
+          }}
+          onBlur={(e) => {
+            e.target.style.boxShadow = "none";
+            e.target.style.borderColor = "#cfccbc";
+          }}
         />
       </div>
+
+      {/* Filter Location */}
       <div>
-        <label className="block text-xs font-medium text-slate-500">Highlight slot</label>
-        <select
-          className="border rounded-lg px-3 py-1.5 text-sm"
-          value={slot}
-          onChange={(e) => onSlot(e.target.value)}
+        <label 
+          className="block text-xs font-bold mb-1 uppercase tracking-wide"
+          style={{ color: "#03323f" }}
         >
-          <option value="">All</option>
-          {TIME_SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-500">Location</label>
+          Location
+        </label>
         <select
-          className="border rounded-lg px-3 py-1.5 text-sm"
+          className="border rounded-lg px-3 py-1.5 text-sm min-w-[180px] bg-white focus:outline-none transition-shadow"
+          style={{ 
+            borderColor: "#cfccbc", 
+            color: "#03323f",
+          }}
           value={locationId}
           onChange={(e) => onLocation(e.target.value)}
+          onFocus={(e) => {
+            e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
+            e.target.style.borderColor = "#03323f";
+          }}
+          onBlur={(e) => {
+            e.target.style.boxShadow = "none";
+            e.target.style.borderColor = "#cfccbc";
+          }}
         >
-          <option value="">All</option>
+          <option value="">All Rooms / Floors</option>
           {locations.map((l) => (
             <option key={l.id} value={String(l.id)}>
-              {l.floor_level} – {l.room_name}
+              Lantai {l.floor_level} – {l.room_name}
             </option>
           ))}
         </select>

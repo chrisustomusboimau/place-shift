@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import Filters, { Location } from "../components/Filters";
 import ScheduleMatrix, { MatrixData } from "../components/ScheduleMatrix";
 import AssignmentModal, { EditingCell } from "../components/AssignmentModal";
-import StaffModal from "../components/StaffModal";
-import LocationModal from "../components/LocationModal";
 
 export default function Dashboard() {
   const { user, logout, isAdmin } = useAuth();
@@ -15,13 +14,13 @@ export default function Dashboard() {
   const [err, setErr] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [slot, setSlot] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
 
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [staffModalOpen, setStaffModalOpen] = useState(false);
-  const [locationModalOpen, setLocationModalOpen] = useState(false);
+
+  // State internal untuk menangkap waktu lokal real-time (Format e.g., "14:00")
+  const [currentTimeStr, setCurrentTimeStr] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -42,55 +41,62 @@ export default function Dashboard() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // Refresh on tab focus (lightweight "realtime" alternative).
   useEffect(() => {
     const onFocus = () => refresh();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [refresh]);
 
+  // Sync waktu lokal komputer setiap 60 detik
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, "0");
+      const minutes = String(now.getMinutes()).padStart(2, "0");
+      setCurrentTimeStr(`${hours}:${minutes}`);
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="min-h-screen">
-      <header className="bg-white border-b">
+    <div className="min-h-screen" style={{ backgroundColor: "#f7f5e1" }}>
+      {/* Header navigasi dengan latar belakang primer gelap dan aksen emas */}
+      <header className="border-b" style={{ backgroundColor: "#03323f", borderColor: "rgba(253, 175, 23, 0.2)" }}>
         <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold">Event Staff Tracker</h1>
-            <p className="text-xs text-slate-500">
-              Signed in as <span className="font-medium">{user?.username}</span> ({user?.role})
+            <h1 className="text-lg font-bold" style={{ color: "#fdaf17" }}>Event Staff Tracker</h1>
+            <p className="text-xs" style={{ color: "#ebeae1" }}>
+              Signed in as <span className="font-semibold" style={{ color: "#fdaf17" }}>{user?.username}</span> ({user?.role})
             </p>
           </div>
           <div className="flex items-center gap-2">
             {isAdmin && (
-              <>
-                <button
-                  onClick={() => setStaffModalOpen(true)}
-                  className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                >
-                  + Add Staff
-                </button>
-                <button
-                  onClick={() => setLocationModalOpen(true)}
-                  className="text-sm px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
-                >
-                  + Add Lantai
-                </button>
-              </>
+              <Link
+                to="/manage"
+                className="text-sm px-3 py-1.5 rounded-lg font-semibold transition-colors hover:opacity-90"
+                style={{ backgroundColor: "#fdaf17", color: "#03323f" }}
+              >
+                Manage Staff & Rooms
+              </Link>
             )}
             <button
               onClick={logout}
-              className="text-sm px-3 py-1.5 rounded-lg border hover:bg-slate-50"
+              className="text-sm px-3 py-1.5 rounded-lg border font-medium transition-colors hover:bg-white/5"
+              style={{ color: "#f7f5e1", borderColor: "rgba(247, 245, 225, 0.3)" }}
             >
               Sign out
             </button>
           </div>
         </div>
       </header>
+      
       <main className="max-w-[1400px] mx-auto px-6 py-6 space-y-4">
         <Filters
           search={search}
           onSearch={setSearch}
-          slot={slot}
-          onSlot={setSlot}
           locationId={locationFilter}
           onLocation={setLocationFilter}
           locations={locations}
@@ -101,40 +107,33 @@ export default function Dashboard() {
           </div>
         )}
         {loading && !matrix && (
-          <div className="text-sm text-slate-500">Loading…</div>
+          <div className="text-sm" style={{ color: "#03323f" }}>Loading…</div>
         )}
+        
         {matrix && (
           <ScheduleMatrix
             data={matrix}
             search={search}
-            highlightSlot={slot}
+            highlightSlot={currentTimeStr} 
             locationFilter={locationFilter}
             isAdmin={isAdmin}
+            currentUser={user} 
             onCellClick={(c) => { setEditing(c); setModalOpen(true); }}
           />
         )}
         {!isAdmin && (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs font-medium" style={{ color: "#617578" }}>
             Read-only view. Ask an admin to make changes.
           </p>
         )}
       </main>
+      
       <AssignmentModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSaved={refresh}
         cell={editing}
         locations={locations}
-      />
-      <StaffModal
-        open={staffModalOpen}
-        onClose={() => setStaffModalOpen(false)}
-        onSaved={refresh}
-      />
-      <LocationModal
-        open={locationModalOpen}
-        onClose={() => setLocationModalOpen(false)}
-        onSaved={refresh}
       />
     </div>
   );
