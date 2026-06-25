@@ -10,6 +10,7 @@ export type EditingCell = {
   date?: string; 
   locationId?: number;
   jobDescription?: string;
+  isLeave?: boolean; // 🔴 Tambahkan status bawaan sel jika ada
 };
 
 type Props = {
@@ -28,8 +29,11 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   
-  // FIX UTAMA: State penentu replikasi durasi hari beruntun
+  // State penentu replikasi durasi hari beruntun
   const [daysCount, setDaysCount] = useState<number>(1);
+
+  // 🔴 STATE BARU: Menandakan status tipe entri izin/absen
+  const [isLeave, setIsLeave] = useState<boolean>(false);
 
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -51,10 +55,10 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
     if (!cell) return;
     setLocationId(cell.locationId ?? "");
     setJobDescription(cell.jobDescription ?? "");
-    setDaysCount(1); // Setel ulang ke default 1 hari setiap kali modal dibuka kembali
+    setIsLeave(cell.isLeave ?? false); // 🔴 Load status izin dari sel terpilih
+    setDaysCount(1); 
     setErr(null);
 
-    // Jika komponen sel grid sudah memiliki data time_slot (Format e.g., "09:00-09:30")
     if (cell.timeSlot && cell.timeSlot.includes("-")) {
       const [start, end] = cell.timeSlot.split("-");
       setStartTime(start.trim());
@@ -96,10 +100,9 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
     return slots;
   }
 
-  // FIX UTAMA: Generator barisan tanggal ke depan dari tanggal dasar yang aktif
+  // Generator barisan tanggal ke depan dari tanggal dasar yang aktif
   function generateDatesRange(baseDateStr: string, count: number): string[] {
     const dates: string[] = [];
-    // Pisahkan string YYYY-MM-DD agar objek Date diolah berdasarkan zona waktu lokal komputer asli
     const [year, month, day] = baseDateStr.split("-").map(Number);
     
     for (let i = 0; i < count; i++) {
@@ -114,7 +117,9 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!cell || locationId === "") {
+    
+    // FIX VALIDASI: Jika tidak absen/izin, wajib pilih lokasi fisik ruangan
+    if (!cell || (!isLeave && locationId === "")) {
       setErr("Pick a location");
       return;
     }
@@ -135,29 +140,30 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
         // Mode Edit: Hanya mengubah isi satu sel tunggal yang diklik
         const payload = {
           staff_id: cell.staffId,
-          location_id: Number(locationId),
+          location_id: isLeave ? null : Number(locationId), // 🔴 null jika izin
           time_slot: cell.timeSlot,
           date: cell.date, 
           job_description: jobDescription,
+          is_leave: isLeave, // 🔴 Sertasikan status izin
         };
         await api.put(`/assignments/${cell.assignmentId}`, payload);
       } else {
-        // Mode Baru (New Assignment): Pecah durasi jam DAN urutan tanggal beruntun sekaligus
+        // Mode Baru (New Assignment): Pecah durasi jam DAN urutan tanggal sekaligus
         const targetSlots = generateSlotsInRange(startTime, endTime);
         const targetDates = generateDatesRange(cell.date || new Date().toISOString().split("T")[0], daysCount);
         
         const requests: Promise<any>[] = [];
 
-        // Lakukan pemetaan nested loop ke dalam tumpukan request paralel Axios POST
         targetDates.forEach((dateStr) => {
           targetSlots.forEach((slot) => {
             requests.push(
               api.post("/assignments", {
                 staff_id: cell.staffId,
-                location_id: Number(locationId),
+                location_id: isLeave ? null : Number(locationId), // 🔴 null jika izin
                 time_slot: slot,
                 date: dateStr,
                 job_description: jobDescription,
+                is_leave: isLeave, // 🔴 Sertasikan status izin
               })
             );
           });
@@ -168,7 +174,7 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
       onSaved();
       onClose();
     } catch (e: any) {
-      setErr(e?.response?.data?.detail ?? "Save failed. Periksa apakah ada slot yang bentrok di salah satu hari tujuan!");
+      setErr(e?.response?.data?.detail ?? "Save failed. Periksa apakah ada slot yang bentrok!");
     } finally {
       setSaving(false);
     }
@@ -205,6 +211,23 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
           </p>
         </div>
 
+        {/* 🔴 CHECKBOX BARU: Pengaturan Izin / Sakit / Absen */}
+        <div className="p-3 rounded-lg border flex items-center gap-3 bg-white/60" style={{ borderColor: "#cfccbc" }}>
+          <input 
+            type="checkbox" 
+            id="isLeaveCheckbox"
+            className="w-4 h-4 rounded text-teal-700 focus:ring-teal-600"
+            checked={isLeave}
+            onChange={(e) => {
+              setIsLeave(e.target.checked);
+              if (e.target.checked) setLocationId(""); // Reset lokasi jika izin dicentang
+            }}
+          />
+          <label htmlFor="isLeaveCheckbox" className="text-sm font-bold cursor-pointer select-none" style={{ color: "#03323f" }}>
+            Staff sedang Izin / Sakit / Cuti (Absen Standby)
+          </label>
+        </div>
+
         {/* Pemilihan Rentang Durasi Waktu Aktif */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
@@ -217,14 +240,6 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
               style={{ borderColor: "#cfccbc", color: "#03323f" }}
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              onFocus={(e) => {
-                e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
-                e.target.style.borderColor = "#03323f";
-              }}
-              onBlur={(e) => {
-                e.target.style.boxShadow = "none";
-                e.target.style.borderColor = "#cfccbc";
-              }}
             >
               {timeSlotsOptions.map((t: string) => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -239,21 +254,13 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
               style={{ borderColor: "#cfccbc", color: "#03323f" }}
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
-              onFocus={(e) => {
-                e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
-                e.target.style.borderColor = "#03323f";
-              }}
-              onBlur={(e) => {
-                e.target.style.boxShadow = "none";
-                e.target.style.borderColor = "#cfccbc";
-              }}
             >
               {endTimeOptions.map((t: string) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
         </div>
 
-        {/* FIX UTAMA: Pilihan Jumlah Hari Beruntun (Hanya Dirender Saat Buat Jadwal Baru) */}
+        {/* Pilihan Jumlah Hari Beruntun (Hanya Dirender Saat Buat Jadwal Baru) */}
         {!isEdit && (
           <div className="space-y-1.5">
             <label className="block text-xs font-bold uppercase tracking-wide" style={{ color: "#03323f" }}>
@@ -264,14 +271,6 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
               style={{ borderColor: "#cfccbc", color: "#03323f" }}
               value={daysCount}
               onChange={(e) => setDaysCount(Number(e.target.value))}
-              onFocus={(e) => {
-                e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
-                e.target.style.borderColor = "#03323f";
-              }}
-              onBlur={(e) => {
-                e.target.style.boxShadow = "none";
-                e.target.style.borderColor = "#cfccbc";
-              }}
             >
               <option value={1}>Hanya Tanggal Aktif Terpilih ({cell.date})</option>
               <option value={2}>2 Hari Beruntun (Hari ini & Besok)</option>
@@ -284,26 +283,19 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
           </div>
         )}
 
-        {/* Pilihan Lokasi */}
+        {/* Pilihan Lokasi - Dinonaktifkan jika staf sedang izin */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wide" style={{ color: "#03323f" }}>
-            Location
+            Location {isLeave && <span className="text-red-600 font-normal normal-case">(Disabled karena Izin)</span>}
           </label>
           <select
-            className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none transition-shadow"
+            disabled={isLeave}
+            className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none transition-shadow disabled:opacity-50 disabled:bg-slate-100"
             style={{ borderColor: "#cfccbc", color: "#03323f" }}
             value={locationId}
             onChange={(e) => setLocationId(e.target.value ? Number(e.target.value) : "")}
-            onFocus={(e) => {
-              e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
-              e.target.style.borderColor = "#03323f";
-            }}
-            onBlur={(e) => {
-              e.target.style.boxShadow = "none";
-              e.target.style.borderColor = "#cfccbc";
-            }}
           >
-            <option value="">Select…</option>
+            <option value="">{isLeave ? "N/A (Sedang Absen)" : "Select…"}</option>
             {locations.map((l) => (
               <option key={l.id} value={l.id}>
                 Lantai {l.floor_level} – {l.room_name}
@@ -315,7 +307,7 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
         {/* Deskripsi Kerja */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wide" style={{ color: "#03323f" }}>
-            Job description
+            {isLeave ? "Keterangan Izin / Alasan" : "Job description"}
           </label>
           <textarea
             className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none transition-shadow"
@@ -323,14 +315,7 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
             rows={3}
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            onFocus={(e) => {
-              e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
-              e.target.style.borderColor = "#03323f";
-            }}
-            onBlur={(e) => {
-              e.target.style.boxShadow = "none";
-              e.target.style.borderColor = "#cfccbc";
-            }}
+            placeholder={isLeave ? "e.g. Sakit (Surat dokter menyusul), Cuti Tahunan" : "e.g. Standby menjaga meja depan"}
           />
         </div>
 

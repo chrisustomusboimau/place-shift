@@ -60,7 +60,6 @@ class StaffOut(StaffBase):
 
 class LocationBase(BaseModel):
     room_name: str
-    # FIX UTAMA: Ubah str menjadi int agar sinkron dengan tipe int di database dan frontend
     floor_level: int = 0
 
 
@@ -70,7 +69,6 @@ class LocationCreate(LocationBase):
 
 class LocationUpdate(BaseModel):
     room_name: Optional[str] = None
-    # FIX UTAMA: Ubah str menjadi int untuk skema partial update (PUT/PATCH)
     floor_level: Optional[int] = None
 
 
@@ -81,13 +79,16 @@ class LocationOut(LocationBase):
 
 class AssignmentBase(BaseModel):
     staff_id: int
-    location_id: int
+    
+    # FIX UTAMA: Ubah menjadi Optional[int] agar bisa bernilai None saat staf izin/cuti
+    location_id: Optional[int] = None
+    
     time_slot: str
-    
-    # Daftarkan field date agar lolos validasi harian Pydantic
     date: str # format: "YYYY-MM-DD"
-    
     job_description: str = ""
+    
+    # FIX UTAMA: Tambahkan field status izin/absen harian
+    is_leave: bool = False
 
     @field_validator("time_slot")
     @classmethod
@@ -105,11 +106,11 @@ class AssignmentUpdate(BaseModel):
     staff_id: Optional[int] = None
     location_id: Optional[int] = None
     time_slot: Optional[str] = None
-    
-    # Tambahkan date opsional untuk kebutuhan pembaruan (PUT)
     date: Optional[str] = None
-    
     job_description: Optional[str] = None
+    
+    # FIX UTAMA: Tambahkan is_leave opsional pada pembaruan data
+    is_leave: Optional[bool] = None
 
     @field_validator("time_slot")
     @classmethod
@@ -121,8 +122,16 @@ class AssignmentUpdate(BaseModel):
         return v
 
 
-class AssignmentOut(AssignmentBase):
+# FIX UTAMA: Override ulang AssignmentOut agar mewarisi kelonggaran bertipe data optional
+class AssignmentOut(BaseModel):
     id: int
+    staff_id: int
+    location_id: Optional[int] = None
+    time_slot: str
+    date: str
+    job_description: str = ""
+    is_leave: bool = False
+
     model_config = {"from_attributes": True}
 
 
@@ -138,9 +147,13 @@ class MatrixStaff(BaseModel):
 
 class MatrixCell(BaseModel):
     assignment_id: int
+    
+    # Catatan: Teks lokasi bisa kita isi otomatis dengan "IZIN / ABSEN" dari router jika is_leave True
     location: str
-    location_id: int
+    
+    location_id: Optional[int] = None # 🔴 Ubah jadi Optional[int]
     job_description: str
+    is_leave: bool = False # 🔴 Tambahkan status penanda ini untuk dibaca grid frontend
 
 
 class MatrixResponse(BaseModel):

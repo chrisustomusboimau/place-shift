@@ -26,8 +26,6 @@ class Staff(SQLModel, table=True):
 class Location(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     room_name: str
-    
-    # FIX UTAMA: Ubah str menjadi int dengan default nilai 0 agar sinkron dengan frontend Number()
     floor_level: int = Field(default=0)
 
 
@@ -37,10 +35,13 @@ class Assignment(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     staff_id: int = Field(foreign_key="staff.id", index=True)
-    location_id: int = Field(foreign_key="location.id")
+    
+    # FIX UTAMA: Ubah menjadi Optional[int] dan default None (NULL) agar saat izin/sakit, admin tidak dipaksa memilih lokasi fisik.
+    location_id: Optional[int] = Field(default=None, foreign_key="location.id", nullable=True)
+    
     time_slot: str = Field(index=True) # e.g. "00:00-00:30"
-    
-    # Kolom tanggal berformat string ISO (YYYY-MM-DD)
     date: str = Field(index=True) # e.g. "2026-06-26"
-    
     job_description: str = ""
+    
+    # FIX UTAMA: Tambahkan field status izin/absen dengan nilai default False
+    is_leave: bool = Field(default=False)

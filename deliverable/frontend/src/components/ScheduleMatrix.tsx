@@ -6,6 +6,7 @@ export type MatrixCell = {
   location: string;
   location_id: number;
   job_description: string;
+  is_leave?: boolean; // 🔴 Tambahkan status penanda dari backend schemas
 };
 
 export type MatrixStaff = { id: number; name: string; division: string; username?: string };
@@ -67,7 +68,7 @@ export default function ScheduleMatrix({
     }
   }, [highlightSlot, data.time_slots]);
 
-  // FIX UTAMA: Gabungkan penyaringan nama dan lokasi standby aktif saat ini
+  // Gabungkan penyaringan nama dan lokasi standby aktif saat ini
   const staff = useMemo(
     () =>
       data.staff
@@ -81,8 +82,8 @@ export default function ScheduleMatrix({
             const staffRowCells = data.cells[String(s.id)] ?? {};
             const currentActiveCell = activeSlotName ? staffRowCells[activeSlotName] : null;
 
-            // Jika tidak ada tugas saat ini atau lokasi tidak cocok dengan filter, keluarkan dari list
-            if (!currentActiveCell || String(currentActiveCell.location_id) !== locationFilter) {
+            // Jika tidak ada tugas saat ini, atau sedang izin, atau lokasi tidak cocok, keluarkan dari list
+            if (!currentActiveCell || currentActiveCell.is_leave || String(currentActiveCell.location_id) !== locationFilter) {
               return false;
             }
           }
@@ -203,20 +204,30 @@ export default function ScheduleMatrix({
                       </span>
                     </div>
 
-                    {/* STATUS LOKASI STANDBY / FREE */}
+                    {/* STATUS LOKASI STANDBY / FREE / IZIN */}
                     <div className="mt-0.5">
                       {currentActiveCell ? (
-                        <div 
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold border px-2 py-0.5 rounded-md max-w-[230px] truncate"
-                          style={{ 
-                            backgroundColor: isMe ? "rgba(253, 175, 23, 0.15)" : "#fff9ec", 
-                            borderColor: "#fdaf17",
-                            color: isMe ? "#fdaf17" : "#b37400"
-                          }}
-                        >
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                          <span>Standby: <strong className="font-bold">{currentActiveCell.location}</strong></span>
-                        </div>
+                        currentActiveCell.is_leave ? (
+                          // Badge khusus jika staf sedang izin/absen di slot aktif saat ini
+                          <div 
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold border px-2 py-0.5 rounded-md text-red-700 bg-red-50 border-red-300"
+                          >
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                            <span>IZIN / ABSEN</span>
+                          </div>
+                        ) : (
+                          <div 
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold border px-2 py-0.5 rounded-md max-w-[230px] truncate"
+                            style={{ 
+                              backgroundColor: isMe ? "rgba(253, 175, 23, 0.15)" : "#fff9ec", 
+                              borderColor: "#fdaf17",
+                              color: isMe ? "#fdaf17" : "#b37400"
+                            }}
+                          >
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            <span>Standby: <strong className="font-bold">{currentActiveCell.location}</strong></span>
+                          </div>
+                        )
                       ) : (
                         <div 
                           className="inline-flex items-center gap-1 text-[11px] font-medium border px-2 py-0.5 rounded-md"
@@ -242,8 +253,11 @@ export default function ScheduleMatrix({
                   
                   const base = "border-b border-r px-3 py-2 text-xs align-top min-w-[150px] h-16 transition-colors";
                   
+                  // FIX UTAMA: Kustomisasi warna background jika sel bertipe izin/absen
                   let gridBg = isMe ? "#03323f" : "#f7f5e1";
-                  if (highlighted) {
+                  if (cell?.is_leave) {
+                    gridBg = highlighted ? "#fee2e2" : "#fecaca"; // Merah pastel Tailwind kontras
+                  } else if (highlighted) {
                     gridBg = isMe ? "#054354" : "#f2f0d5"; 
                   }
 
@@ -264,18 +278,19 @@ export default function ScheduleMatrix({
                             timeSlot: slot,
                             locationId: cell.location_id,
                             jobDescription: cell.job_description,
+                            isLeave: cell.is_leave, // 🔴 Teruskan flag isLeave ke modal form
                           })
                         }
                       >
                         <div 
                           className="font-bold truncate"
-                          style={{ color: isMe ? "#fdaf17" : "#03323f" }}
+                          style={{ color: cell.is_leave ? "#b91c1c" : (isMe ? "#fdaf17" : "#03323f") }}
                         >
-                          {cell.location}
+                          {cell.is_leave ? "IZIN / ABSEN" : cell.location}
                         </div>
                         <div 
                           className="line-clamp-2 mt-0.5"
-                          style={{ color: isMe ? "#e8e5cd" : "#4b5c5e" }}
+                          style={{ color: cell.is_leave ? "#7f1d1d" : (isMe ? "#e8e5cd" : "#4b5c5e") }}
                         >
                           {cell.job_description}
                         </div>

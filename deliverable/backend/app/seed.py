@@ -19,15 +19,6 @@ def run_seed() -> None:
                 )
             )
 
-        if not session.exec(select(Location)).first():
-            session.add_all(
-                [
-                    # FIX UTAMA: Mengubah nilai string "Floor X" menjadi angka integer murni (int)
-                    Location(room_name="Main Hall", floor_level=1),
-                    Location(room_name="Room A", floor_level=2),
-                    Location(room_name="Room B", floor_level=2),
-                    Location(room_name="Rooftop", floor_level=3),
-                ]
-            )
+
 
         session.commit()
