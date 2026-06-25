@@ -61,12 +61,20 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             {isAdmin && (
-              <button
-                onClick={() => setStaffModalOpen(true)}
-                className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-              >
-                + Add Staff
-              </button>
+              <>
+                <button
+                  onClick={() => setStaffModalOpen(true)}
+                  className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  + Add Staff
+                </button>
+                <button
+                  onClick={() => setLocationModalOpen(true)}
+                  className="text-sm px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  + Add Lantai
+                </button>
+              </>
             )}
             <button
               onClick={logout}
