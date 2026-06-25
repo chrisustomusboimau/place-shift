@@ -131,6 +131,11 @@ export default function Dashboard() {
         onClose={() => setStaffModalOpen(false)}
         onSaved={refresh}
       />
+      <LocationModal
+        open={locationModalOpen}
+        onClose={() => setLocationModalOpen(false)}
+        onSaved={refresh}
+      />
     </div>
   );
 }
