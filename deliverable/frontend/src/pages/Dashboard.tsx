@@ -16,18 +16,27 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
 
+  // FIX UTAMA: State untuk memanajemeni tanggal aktif (Format ISO: YYYY-MM-DD)
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    const offset = today.getTimezoneOffset();
+    const localToday = new Date(today.getTime() - (offset * 60 * 1000));
+    return localToday.toISOString().split("T")[0];
+  });
+
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
   // State internal untuk menangkap waktu lokal real-time (Format e.g., "14:00")
   const [currentTimeStr, setCurrentTimeStr] = useState("");
 
+  // FIX UTAMA: Refresh sekarang wajib menyertakan parameter kueri tanggal ke API matriks
   const refresh = useCallback(async () => {
     setLoading(true);
     setErr(null);
     try {
       const [m, l] = await Promise.all([
-        api.get<MatrixData>("/assignments/matrix"),
+        api.get<MatrixData>(`/assignments/matrix?date=${selectedDate}`),
         api.get<Location[]>("/locations"),
       ]);
       setMatrix(m.data);
@@ -37,7 +46,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDate]); // Picu ulang fungsi penarikan data jika tanggal berubah
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -94,12 +103,15 @@ export default function Dashboard() {
       </header>
       
       <main className="max-w-[1400px] mx-auto px-6 py-6 space-y-4">
+        {/* FIX UTAMA: Lempar state kontrol kalender ke dalam komponen Filters */}
         <Filters
           search={search}
           onSearch={setSearch}
           locationId={locationFilter}
           onLocation={setLocationFilter}
           locations={locations}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
         />
         {err && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -118,7 +130,11 @@ export default function Dashboard() {
             locationFilter={locationFilter}
             isAdmin={isAdmin}
             currentUser={user} 
-            onCellClick={(c) => { setEditing(c); setModalOpen(true); }}
+            onCellClick={(c) => { 
+              // FIX UTAMA: Sisipkan data tanggal aktif saat sel grid diklik ke modal form
+              setEditing({ ...c, date: selectedDate }); 
+              setModalOpen(true); 
+            }}
           />
         )}
         {!isAdmin && (

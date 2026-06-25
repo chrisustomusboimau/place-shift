@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from ..database import get_session
@@ -21,13 +21,16 @@ from ..security import get_current_user, require_admin
 router = APIRouter(prefix="/assignments", tags=["assignments"])
 
 
-def _check_conflict(session: Session, staff_id: int, time_slot: str, exclude_id: Optional[int] = None):
+# FIX UTAMA: Tambahkan parameter 'date' ke dalam pengecekan konflik jadwal harian
+def _check_conflict(session: Session, staff_id: int, time_slot: str, date: str, exclude_id: Optional[int] = None):
     stmt = select(Assignment).where(
-        Assignment.staff_id == staff_id, Assignment.time_slot == time_slot
+        Assignment.staff_id == staff_id, 
+        Assignment.time_slot == time_slot,
+        Assignment.date == date  # 🔴 Kunci pencocokan berdasarkan tanggal spesifik
     )
     existing = session.exec(stmt).first()
     if existing and existing.id != exclude_id:
-        raise HTTPException(400, "Staff already booked for this time slot")
+        raise HTTPException(400, "Staff already booked for this time slot on this day")
 
 
 @router.get("", response_model=list[AssignmentOut])
@@ -35,11 +38,18 @@ def list_assignments(session: Session = Depends(get_session), _=Depends(get_curr
     return session.exec(select(Assignment)).all()
 
 
+# FIX UTAMA: Terima query parameter 'date' (?date=YYYY-MM-DD) wajib dari frontend
 @router.get("/matrix", response_model=MatrixResponse)
-def matrix(session: Session = Depends(get_session), _=Depends(get_current_user)):
+def matrix(
+    date: str = Query(...),  # 🔴 Wajibkan parameter date harian
+    session: Session = Depends(get_session), 
+    _=Depends(get_current_user)
+):
     staff_rows = session.exec(select(Staff).order_by(Staff.name)).all()
     locations = {loc.id: loc for loc in session.exec(select(Location)).all()}
-    assignments = session.exec(select(Assignment)).all()
+    
+    # 🔴 FILTER UTAMA: Hanya tarik tugas yang dijadwalkan pada tanggal ini
+    assignments = session.exec(select(Assignment).where(Assignment.date == date)).all()
 
     cells: dict[str, dict[str, MatrixCell]] = {}
     for a in assignments:
@@ -52,7 +62,6 @@ def matrix(session: Session = Depends(get_session), _=Depends(get_current_user))
             job_description=a.job_description,
         )
 
-    # FIX: Teruskan field username dan role dari database (s) ke dalam objek MatrixStaff
     return MatrixResponse(
         time_slots=TIME_SLOTS,
         staff=[
@@ -60,8 +69,8 @@ def matrix(session: Session = Depends(get_session), _=Depends(get_current_user))
                 id=s.id, 
                 name=s.name, 
                 division=s.division or "",
-                username=s.username,  # <-- MENYUPLAI USERNAME ASLI
-                role=s.role or "staff" # <-- MENYUPLAI ROLE ASLI
+                username=s.username,  
+                role=s.role or "staff" 
             ) 
             for s in staff_rows
         ],
@@ -77,7 +86,10 @@ def create_assignment(
         raise HTTPException(404, "Staff not found")
     if not session.get(Location, data.location_id):
         raise HTTPException(404, "Location not found")
-    _check_conflict(session, data.staff_id, data.time_slot)
+        
+    # FIX UTAMA: Ambil variabel date dari Pydantic payload untuk divalidasi konfliknya
+    _check_conflict(session, data.staff_id, data.time_slot, data.date)
+    
     a = Assignment(**data.model_dump())
     session.add(a)
     session.commit()
@@ -95,13 +107,20 @@ def update_assignment(
     a = session.get(Assignment, assignment_id)
     if not a:
         raise HTTPException(404, "Assignment not found")
+        
     updates = data.model_dump(exclude_unset=True)
+    
     new_staff = updates.get("staff_id", a.staff_id)
     new_slot = updates.get("time_slot", a.time_slot)
-    if new_staff != a.staff_id or new_slot != a.time_slot:
-        _check_conflict(session, new_staff, new_slot, exclude_id=a.id)
+    new_date = updates.get("date", a.date) # 🔴 Tangkap pembaruan tanggal jika ada
+    
+    # Validasi konflik jika salah satu dari komponen penentu jadwal berubah
+    if new_staff != a.staff_id or new_slot != a.time_slot or new_date != a.date:
+        _check_conflict(session, new_staff, new_slot, new_date, exclude_id=a.id)
+        
     for k, v in updates.items():
         setattr(a, k, v)
+        
     session.add(a)
     session.commit()
     session.refresh(a)

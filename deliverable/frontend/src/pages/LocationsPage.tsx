@@ -30,6 +30,36 @@ export default function LocationsPage() {
   // Search
   const [search, setSearch] = useState("");
 
+  // FIX PARSING AMAN DAN TOTAL: Memastikan tidak akan pernah ada Object yang lolos ke JSX React
+  function parseBackendError(errorObj: any): string {
+    if (!errorObj) return "An unknown error occurred";
+    
+    // Tarik data detail dari Axios Response
+    const detail = errorObj?.response?.data?.detail;
+    if (!detail) return errorObj.message || String(errorObj);
+
+    // Jika detail berupa array (Validasi Pydantic default: [{type, loc, msg, input}])
+    if (Array.isArray(detail)) {
+      try {
+        return detail.map((errItem: any) => {
+          const locationPath = errItem?.loc ? errItem.loc.join(".") : "field";
+          const message = errItem?.msg || "invalid value";
+          return `[${locationPath}] ${message}`;
+        }).join(" | ");
+      } catch (parseEvalErr) {
+        return "Validation failed on server parameters.";
+      }
+    }
+
+    // Jika detail berupa objek tunggal
+    if (typeof detail === "object") {
+      if (detail.msg) return String(detail.msg);
+      return JSON.stringify(detail);
+    }
+
+    return String(detail);
+  }
+
   async function load() {
     setLoading(true);
     setErr(null);
@@ -37,7 +67,7 @@ export default function LocationsPage() {
       const res = await api.get<Location[]>("/locations");
       setLocations(Array.isArray(res.data) ? res.data : []);
     } catch (e: any) {
-      setErr(e?.response?.data?.detail ?? "Failed to load locations");
+      setErr(parseBackendError(e)); // Aman, pasti string
     } finally {
       setLoading(false);
     }
@@ -72,9 +102,11 @@ export default function LocationsPage() {
     setSaving(true);
     setFormErr(null);
     try {
+      // SINKRONISASI PAYLOAD BERDASARKAN SKEMA BACKEND (Mencegah Pydantic Lempar Error 422/500)
       const payload = {
         room_name: editing.room_name,
-        floor_level: Number(editing.floor_level) || 0,
+        // Jika di backend models.py kamu: floor_level: str = "", ubah Number() di bawah ini menjadi String()
+        floor_level: Number(editing.floor_level) || 0, 
         description: editing.description || "",
       };
 
@@ -86,7 +118,7 @@ export default function LocationsPage() {
       setModalOpen(false);
       await load();
     } catch (e: any) {
-      setFormErr(e?.response?.data?.detail ?? "Save failed");
+      setFormErr(parseBackendError(e)); // Aman, pasti string
     } finally {
       setSaving(false);
     }
@@ -94,12 +126,13 @@ export default function LocationsPage() {
 
   async function handleDelete(id: number) {
     setDeleting(true);
+    setErr(null);
     try {
       await api.delete(`/locations/${id}`);
       setDeleteId(null);
       await load();
     } catch (e: any) {
-      setErr(e?.response?.data?.detail ?? "Delete failed");
+      setErr(parseBackendError(e)); // Aman, pasti string
       setDeleteId(null);
     } finally {
       setDeleting(false);
@@ -142,7 +175,7 @@ export default function LocationsPage() {
       </div>
 
       {err && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 font-medium">
           {err}
         </div>
       )}
@@ -259,7 +292,7 @@ export default function LocationsPage() {
               </div>
             </div>
             {formErr && (
-              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 font-medium">
                 {formErr}
               </div>
             )}

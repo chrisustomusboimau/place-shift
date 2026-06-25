@@ -7,6 +7,7 @@ export type EditingCell = {
   staffId: number;
   staffName: string;
   timeSlot: string;
+  date?: string; 
   locationId?: number;
   jobDescription?: string;
 };
@@ -23,10 +24,13 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
   const [locationId, setLocationId] = useState<number | "">("");
   const [jobDescription, setJobDescription] = useState("");
   
-  // State baru untuk menampung rentang waktu durasi custom
+  // State menampung rentang waktu durasi custom
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   
+  // FIX UTAMA: State penentu replikasi durasi hari beruntun
+  const [daysCount, setDaysCount] = useState<number>(1);
+
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -47,6 +51,7 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
     if (!cell) return;
     setLocationId(cell.locationId ?? "");
     setJobDescription(cell.jobDescription ?? "");
+    setDaysCount(1); // Setel ulang ke default 1 hari setiap kali modal dibuka kembali
     setErr(null);
 
     // Jika komponen sel grid sudah memiliki data time_slot (Format e.g., "09:00-09:30")
@@ -64,7 +69,7 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
 
   const isEdit = !!cell.assignmentId;
 
-  // FIX TYPE: Mengubah format string "HH:MM" menjadi total menit absolut dengan tipe eksplisit
+  // Helper matematika: Mengubah format string "HH:MM" menjadi total menit absolut
   function timeToMinutes(t: string): number {
     const [h, m] = t.split(":").map(Number);
     return h * 60 + m;
@@ -89,6 +94,22 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
       current = next;
     }
     return slots;
+  }
+
+  // FIX UTAMA: Generator barisan tanggal ke depan dari tanggal dasar yang aktif
+  function generateDatesRange(baseDateStr: string, count: number): string[] {
+    const dates: string[] = [];
+    // Pisahkan string YYYY-MM-DD agar objek Date diolah berdasarkan zona waktu lokal komputer asli
+    const [year, month, day] = baseDateStr.split("-").map(Number);
+    
+    for (let i = 0; i < count; i++) {
+      const nextDate = new Date(year, month - 1, day + i);
+      const yyyy = nextDate.getFullYear();
+      const mm = String(nextDate.getMonth() + 1).padStart(2, "0");
+      const dd = String(nextDate.getDate()).padStart(2, "0");
+      dates.push(`${yyyy}-${mm}-${dd}`);
+    }
+    return dates;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -116,29 +137,38 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
           staff_id: cell.staffId,
           location_id: Number(locationId),
           time_slot: cell.timeSlot,
+          date: cell.date, 
           job_description: jobDescription,
         };
         await api.put(`/assignments/${cell.assignmentId}`, payload);
       } else {
-        // Mode Baru (New Assignment): Pecah durasi menjadi kepingan array kueri POST
+        // Mode Baru (New Assignment): Pecah durasi jam DAN urutan tanggal beruntun sekaligus
         const targetSlots = generateSlotsInRange(startTime, endTime);
+        const targetDates = generateDatesRange(cell.date || new Date().toISOString().split("T")[0], daysCount);
         
-        // Eksekusi seluruh request POST secara paralel
-        await Promise.all(
-          targetSlots.map((slot) =>
-            api.post("/assignments", {
-              staff_id: cell.staffId,
-              location_id: Number(locationId),
-              time_slot: slot,
-              job_description: jobDescription,
-            })
-          )
-        );
+        const requests: Promise<any>[] = [];
+
+        // Lakukan pemetaan nested loop ke dalam tumpukan request paralel Axios POST
+        targetDates.forEach((dateStr) => {
+          targetSlots.forEach((slot) => {
+            requests.push(
+              api.post("/assignments", {
+                staff_id: cell.staffId,
+                location_id: Number(locationId),
+                time_slot: slot,
+                date: dateStr,
+                job_description: jobDescription,
+              })
+            );
+          });
+        });
+
+        await Promise.all(requests);
       }
       onSaved();
       onClose();
     } catch (e: any) {
-      setErr(e?.response?.data?.detail ?? "Save failed. Periksa apakah ada slot yang bentrok!");
+      setErr(e?.response?.data?.detail ?? "Save failed. Periksa apakah ada slot yang bentrok di salah satu hari tujuan!");
     } finally {
       setSaving(false);
     }
@@ -163,12 +193,12 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <form 
         onSubmit={onSubmit} 
-        className="rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 border"
+        className="rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 border overflow-y-auto max-h-[90vh]"
         style={{ backgroundColor: "#f7f5e1", borderColor: "#d9d6be" }}
       >
         <div>
           <h2 className="text-lg font-bold" style={{ color: "#03323f" }}>
-            {isEdit ? "Edit Assignment" : "New Custom Duration Assignment"}
+            {isEdit ? "Edit Assignment" : "Bulk Custom Assignment"}
           </h2>
           <p className="text-sm font-semibold mt-0.5" style={{ color: "#617578" }}>
             Staff Target: <span style={{ color: "#03323f" }}>{cell.staffName}</span>
@@ -222,6 +252,37 @@ export default function AssignmentModal({ open, onClose, onSaved, cell, location
             </select>
           </div>
         </div>
+
+        {/* FIX UTAMA: Pilihan Jumlah Hari Beruntun (Hanya Dirender Saat Buat Jadwal Baru) */}
+        {!isEdit && (
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wide" style={{ color: "#03323f" }}>
+              Durasi Hari (Recurrence)
+            </label>
+            <select
+              className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none transition-shadow"
+              style={{ borderColor: "#cfccbc", color: "#03323f" }}
+              value={daysCount}
+              onChange={(e) => setDaysCount(Number(e.target.value))}
+              onFocus={(e) => {
+                e.target.style.boxShadow = "0 0 0 2px rgba(3, 50, 63, 0.2)";
+                e.target.style.borderColor = "#03323f";
+              }}
+              onBlur={(e) => {
+                e.target.style.boxShadow = "none";
+                e.target.style.borderColor = "#cfccbc";
+              }}
+            >
+              <option value={1}>Hanya Tanggal Aktif Terpilih ({cell.date})</option>
+              <option value={2}>2 Hari Beruntun (Hari ini & Besok)</option>
+              <option value={3}>3 Hari Beruntun (Hari ini, Besok, Lusa)</option>
+              <option value={4}>4 Hari Beruntun</option>
+              <option value={5}>5 Hari Beruntun</option>
+              <option value={6}>6 Hari Beruntun</option>
+              <option value={7}>1 Minggu Penuh (7 Hari ke depan)</option>
+            </select>
+          </div>
+        )}
 
         {/* Pilihan Lokasi */}
         <div className="space-y-1.5">

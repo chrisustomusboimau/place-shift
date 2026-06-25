@@ -60,7 +60,8 @@ class StaffOut(StaffBase):
 
 class LocationBase(BaseModel):
     room_name: str
-    floor_level: str = ""
+    # FIX UTAMA: Ubah str menjadi int agar sinkron dengan tipe int di database dan frontend
+    floor_level: int = 0
 
 
 class LocationCreate(LocationBase):
@@ -69,7 +70,8 @@ class LocationCreate(LocationBase):
 
 class LocationUpdate(BaseModel):
     room_name: Optional[str] = None
-    floor_level: Optional[str] = None
+    # FIX UTAMA: Ubah str menjadi int untuk skema partial update (PUT/PATCH)
+    floor_level: Optional[int] = None
 
 
 class LocationOut(LocationBase):
@@ -81,6 +83,10 @@ class AssignmentBase(BaseModel):
     staff_id: int
     location_id: int
     time_slot: str
+    
+    # Daftarkan field date agar lolos validasi harian Pydantic
+    date: str # format: "YYYY-MM-DD"
+    
     job_description: str = ""
 
     @field_validator("time_slot")
@@ -99,6 +105,10 @@ class AssignmentUpdate(BaseModel):
     staff_id: Optional[int] = None
     location_id: Optional[int] = None
     time_slot: Optional[str] = None
+    
+    # Tambahkan date opsional untuk kebutuhan pembaruan (PUT)
+    date: Optional[str] = None
+    
     job_description: Optional[str] = None
 
     @field_validator("time_slot")
@@ -116,7 +126,6 @@ class AssignmentOut(AssignmentBase):
     model_config = {"from_attributes": True}
 
 
-# FIX UTAMA: Tambahkan konfigurasi ORM attributes agar mapping objek Staff DB sukses dilempar lewat list comprehension assignments router
 class MatrixStaff(BaseModel):
     id: int
     name: str
