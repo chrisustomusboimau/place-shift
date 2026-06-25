@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
